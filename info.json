@@ -1,0 +1,10 @@
+﻿{
+  "Id": "FrogtownHealingHelper",
+  "DisplayName": "Frogtown Healing Helper",
+  "Author": "Frogtown Matt",
+  "Version": "1.0.0",
+  "GameVersion": "1.0.0",
+  "Requirements": [ "FrogtownShared" ],
+  "AssemblyName": "HealingHelper.dll",
+  "EntryMethod": "Frogtown.HealingHelperMain.Load"
+}
