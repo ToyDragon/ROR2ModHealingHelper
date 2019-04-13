@@ -8,7 +8,7 @@ using UnityEngine.Networking;
 namespace Frogtown
 {
     [BepInDependency("com.frogtown.shared")]
-    [BepInPlugin("com.frogtown.healinghelper", "Healing Helper", "1.0")]
+    [BepInPlugin("com.frogtown.healinghelper", "Healing Helper", "1.0.1")]
     public class HealingHelperMain : BaseUnityPlugin
     {
         public ModDetails modDetails;
