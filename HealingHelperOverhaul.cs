@@ -1,48 +1,65 @@
-﻿using Harmony;
+﻿using BepInEx;
+using Harmony;
 using RoR2;
-using System;
 using System.Collections.Generic;
-using System.Reflection;
-using UnityEngine;
 using System.Collections.ObjectModel;
 using UnityEngine.Networking;
-using UnityModManagerNet;
 
 namespace Frogtown
 {
-    public class HealingHelperMain
+    [BepInDependency("com.frogtown.shared")]
+    [BepInPlugin("com.frogtown.healinghelper", "Healing Helper", "1.0")]
+    public class HealingHelperMain : BaseUnityPlugin
     {
+        public ModDetails modDetails;
+        public void Awake()
+        {
+            modDetails = new ModDetails("com.frogtown.healinghelper");
+            On.RoR2.Stage.FixedUpdate += (orig, instance) =>
+            {
+                StageFixedUpdatePrefix(instance);
+                orig(instance);
+            };
+
+            On.RoR2.CharacterMaster.OnBodyDeath += (orig, instance) =>
+            {
+                orig(instance);
+                CharacterMasterOnBodyDeathPostfix(instance);
+            };
+
+            On.RoR2.Run.Start += (orig, instance) =>
+            {
+                orig(instance);
+                RunStartPostfix();
+            };
+
+            On.RoR2.Stage.RespawnCharacter += (orig, instance, characterMaster) =>
+            {
+                StageRespawnCharacterPrefix(characterMaster);
+                orig(instance, characterMaster);
+            };
+        }
+
         /// <summary>
         /// Dictionary of body names for characters that have been turned into drones.
         /// </summary>
-        public static Dictionary<string, string> originalBodyNames = new Dictionary<string, string>();
+        public Dictionary<string, string> originalBodyNames = new Dictionary<string, string>();
 
-        public static bool enabled;
-        public static bool gameover;
-        public static UnityModManager.ModEntry modEntry;
+        /// <summary>
+        /// Which players are currently bots
+        /// </summary>
+        private HashSet<string> botPlayers = new HashSet<string>();
 
-        static bool Load(UnityModManager.ModEntry modEntry)
-        {
-            var harmony = HarmonyInstance.Create("com.frog.healinghelperoverhaul");
-            harmony.PatchAll(Assembly.GetExecutingAssembly());
-            HealingHelperMain.modEntry = modEntry;
-            enabled = true;
-            modEntry.OnToggle = OnToggle;
-            return true;
-        }
-
-        static bool OnToggle(UnityModManager.ModEntry modEntry, bool value)
-        {
-            enabled = value;
-            FrogtownShared.ModToggled(value);
-            return true;
-        }
+        /// <summary>
+        /// true if all players are bots
+        /// </summary>
+        public bool gameover;
 
         /// <summary>
         /// Restores user to their original prefab
         /// </summary>
         /// <param name="name"></param>
-        public static void RestoreCharacterPrefab(string name)
+        public void RestoreCharacterPrefab(string name)
         {
             PlayerCharacterMasterController player = FrogtownShared.GetPlayerWithName(name);
             if (player != null)
@@ -65,7 +82,7 @@ namespace Frogtown
         /// <summary>
         /// Restores all users to their original prefabs.
         /// </summary>
-        public static void RestoreCharacterPrefabsAndKill()
+        public void RestoreCharacterPrefabsAndKill()
         {
             foreach (string name in originalBodyNames.Keys)
             {
@@ -84,31 +101,10 @@ namespace Frogtown
                 }
             }
         }
-    }
 
-    /// <summary>
-    /// Copied logic, except isntead of checking for "PreventGameOver" we check for if they are a healing drone or not.
-    /// </summary>
-    [HarmonyPatch(typeof(RoR2.Stage))]
-    [HarmonyPatch("FixedUpdate")]
-    [HarmonyPatch(new Type[] { })]
-    class StageTickPatch
-    {
-        private static HashSet<string> botPlayers = new HashSet<string>();
-
-        public static void Clearbots()
+        private void StageFixedUpdatePrefix(Stage instance)
         {
-            botPlayers.Clear();
-        }
-
-        public static void PlayerIsBot(string player)
-        {
-            botPlayers.Add(player);
-        }
-
-        static void Postfix(Stage __instance)
-        {
-            if (HealingHelperMain.gameover)
+            if (gameover)
             {
                 return;
             }
@@ -116,8 +112,8 @@ namespace Frogtown
             //Still end even when disabled in case it was turned off mid round.
             if (NetworkServer.active)
             {
-                var sAnyPlayer = Traverse.Create(__instance).Field<bool>("spawnedAnyPlayer");
-                if (sAnyPlayer.Value && float.IsInfinity(__instance.stageAdvanceTime) && !Run.instance.isGameOverServer)
+                var sAnyPlayer = Traverse.Create(instance).Field("spawnedAnyPlayer").GetValue() as bool?;
+                if (sAnyPlayer.HasValue && sAnyPlayer.Value && float.IsInfinity(instance.stageAdvanceTime) && !Run.instance.isGameOverServer)
                 {
                     ReadOnlyCollection<PlayerCharacterMasterController> instances = PlayerCharacterMasterController.instances;
                     bool flag = false;
@@ -132,80 +128,53 @@ namespace Frogtown
                     }
                     if (!flag)
                     {
-                        HealingHelperMain.RestoreCharacterPrefabsAndKill();
-                        HealingHelperMain.gameover = true;
+                        RestoreCharacterPrefabsAndKill();
+                        gameover = true;
                     }
                 }
             }
         }
-    }
 
-    /// <summary>
-    /// Respawns as healing drone and saves original prefab name.
-    /// </summary>
-    [HarmonyPatch(typeof(RoR2.CharacterMaster))]
-    [HarmonyPatch("OnBodyDeath")]
-    [HarmonyPatch(new Type[] { })]
-    class DeathPatch
-    {
-        static void Postfix(CharacterMaster __instance)
+        private void CharacterMasterOnBodyDeathPostfix(CharacterMaster instance)
         {
-            if (HealingHelperMain.gameover)
+            if (gameover)
             {
                 return;
             }
-            PlayerCharacterMasterController player = __instance.GetComponent<PlayerCharacterMasterController>();
+            PlayerCharacterMasterController player = instance.GetComponent<PlayerCharacterMasterController>();
             if (player != null)
             {
-                if (!__instance.preventGameOver)
+                if (!instance.preventGameOver)
                 {
-                    if (HealingHelperMain.enabled)
+                    if (modDetails.enabled)
                     {
                         var name = player.networkUser.GetNetworkPlayerName().GetResolvedName();
-                        HealingHelperMain.originalBodyNames.Add(name, player.master.bodyPrefab.name);
+                        originalBodyNames.Add(name, player.master.bodyPrefab.name);
                         var prefab = BodyCatalog.FindBodyPrefab("Drone2Body");
                         FrogtownShared.ChangePrefab(name, prefab);
                     }
                     //Still log they are a bot incase the mod was disabled in the middle of the round, so that the game can end properly.
-                    StageTickPatch.PlayerIsBot(player.networkUser.GetNetworkPlayerName().GetResolvedName());
+                    botPlayers.Add(player.networkUser.GetNetworkPlayerName().GetResolvedName());
                 }
             }
         }
-    }
 
-    /// <summary>
-    /// Clear out body names so that if users change characters between rounds we respect the change.
-    /// </summary>
-    [HarmonyPatch(typeof(RoR2.Run))]
-    [HarmonyPatch("Start")]
-    [HarmonyPatch(new Type[] { })]
-    class RunAdvanceStagePatch
-    {
-        static void Postfix()
+        private void RunStartPostfix()
         {
-            HealingHelperMain.originalBodyNames.Clear();
-            HealingHelperMain.gameover = false;
-            StageTickPatch.Clearbots();
+            originalBodyNames.Clear();
+            gameover = false;
+            botPlayers.Clear();
         }
-    }
 
-    /// <summary>
-    /// Restores the original prefab on stage change.
-    /// </summary>
-    [HarmonyPatch(typeof(RoR2.Stage))]
-    [HarmonyPatch("RespawnCharacter")]
-    [HarmonyPatch(new Type[] { typeof(CharacterMaster) })]
-    class StagePatch
-    {
-        static void Prefix(CharacterMaster characterMaster)
+        private void StageRespawnCharacterPrefix(CharacterMaster characterMaster)
         {
-            if (!HealingHelperMain.enabled)
+            if (!modDetails.enabled)
             {
                 return;
             }
             PlayerCharacterMasterController player = characterMaster.GetComponent<PlayerCharacterMasterController>();
             string name = player.networkUser.GetNetworkPlayerName().GetResolvedName();
-            HealingHelperMain.RestoreCharacterPrefab(name);
+            RestoreCharacterPrefab(name);
         }
     }
 }
