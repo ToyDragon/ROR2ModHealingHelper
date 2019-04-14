@@ -8,13 +8,20 @@ using UnityEngine.Networking;
 namespace Frogtown
 {
     [BepInDependency("com.frogtown.shared")]
-    [BepInPlugin("com.frogtown.healinghelper", "Healing Helper", "1.0.1")]
+    [BepInPlugin("com.frogtown.healinghelper", "Healing Helper", "1.0.2")]
     public class HealingHelperMain : BaseUnityPlugin
     {
         public ModDetails modDetails;
         public void Awake()
         {
-            modDetails = new ModDetails("com.frogtown.healinghelper");
+            modDetails = new ModDetails("com.frogtown.healinghelper")
+            {
+                description = "Turns you into a healing drone when you die, instead of spectating.",
+                githubAuthor = "ToyDragon",
+                githubRepo = "ROR2ModHealingHelper",
+            };
+            FrogtownShared.RegisterMod(modDetails);
+
             On.RoR2.Stage.FixedUpdate += (orig, instance) =>
             {
                 StageFixedUpdatePrefix(instance);
