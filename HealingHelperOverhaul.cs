@@ -8,13 +8,13 @@ using UnityEngine.Networking;
 namespace Frogtown
 {
     [BepInDependency("com.frogtown.shared")]
-    [BepInPlugin("com.frogtown.healinghelper", "Healing Helper", "1.0.2")]
+    [BepInPlugin("com.frogtown.healinghelper", "Healing Helper", "1.0.3")]
     public class HealingHelperMain : BaseUnityPlugin
     {
-        public ModDetails modDetails;
+        public FrogtownModDetails modDetails;
         public void Awake()
         {
-            modDetails = new ModDetails("com.frogtown.healinghelper")
+            modDetails = new FrogtownModDetails("com.frogtown.healinghelper")
             {
                 description = "Turns you into a healing drone when you die, instead of spectating.",
                 githubAuthor = "ToyDragon",
