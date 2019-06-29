@@ -1,0 +1,7 @@
+{
+    "name": "HealingHelpers",
+    "version_number": "1.0.4",
+    "website_url": "https://github.com/ToyDragon/ROR2ModHealingHelper",
+	"dependencies": ["bbepis-BepInExPack-1.3.1", "ToyDragon-SharedModLibrary-2.0.0"],
+    "description": "With this mod instead of spactating when you die, you will now be turned into a healing drone until the match is complete. You can heal your surviving teammates, pickup items from the boss, and even purchase items from chests."
+}
